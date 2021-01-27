@@ -30,9 +30,6 @@ MEMORY_SIZE = int(1e6)
 BATCH_SIZE = 256
 GAMMA = 0.99
 TAU = 0.005
-ALPHA = 0.2  # determines the relative importance of entropy term against the reward
-BETA = 4.66  # determines the relative importance of sigma_Q
-DELTA = 23.53  # determines the relative changes of exploration`s mean
 ACTOR_LR = 3e-4
 CRITIC_LR = 3e-4
 
@@ -106,9 +103,9 @@ def main():
         model,
         gamma=GAMMA,
         tau=TAU,
-        alpha=ALPHA,
-        beta=BETA,
-        delta=DELTA,
+        alpha=args.alpha,
+        beta=args.beta,
+        delta=args.delta,
         actor_lr=ACTOR_LR,
         critic_lr=CRITIC_LR)
     agent = MujocoAgent(algorithm)
@@ -152,10 +149,27 @@ if __name__ == "__main__":
         type=int,
         help='Max time steps to run environment')
     parser.add_argument(
-        '--test_every_steps',
-        type=int,
+        "--test_every_steps",
         default=int(5e3),
+        type=int,
         help='The step interval between two consecutive evaluations')
+    parser.add_argument(
+        "--alpha",
+        default=0.2,
+        type=float,
+        help=
+        'Determines the relative importance of entropy term against the reward'
+    )
+    parser.add_argument(
+        "--beta",
+        default=4.66,
+        type=float,
+        help='Determines the relative importance of sigma_Q')
+    parser.add_argument(
+        "--delta",
+        default=23.53,
+        type=float,
+        help='Determines the relative changes of exploration`s mean')
     args = parser.parse_args()
 
     main()
