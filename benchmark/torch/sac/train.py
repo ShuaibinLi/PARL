@@ -19,17 +19,16 @@ from parl.utils import logger, tensorboard, ReplayMemory
 from parl.env.continuous_wrappers import ActionMappingWrapper
 from mujoco_model import MujocoModel
 from mujoco_agent import MujocoAgent
-from parl.algorithms import DDPG
+from parl.algorithms import SAC
 
 WARMUP_STEPS = 1e4
 EVAL_EPISODES = 5
 MEMORY_SIZE = int(1e6)
-BATCH_SIZE = 100
+BATCH_SIZE = 256
 GAMMA = 0.99
 TAU = 0.005
-ACTOR_LR = 1e-3
-CRITIC_LR = 1e-3
-EXPL_NOISE = 0.1  # Std of Gaussian exploration noise
+ACTOR_LR = 3e-4
+CRITIC_LR = 3e-4
 
 
 # Run episode for training
@@ -38,7 +37,6 @@ def run_train_episode(agent, env, rpm):
     obs = env.reset()
     done = False
     episode_reward, episode_steps = 0, 0
-
     while not done:
         episode_steps += 1
         # Select action randomly or according to policy
@@ -53,6 +51,7 @@ def run_train_episode(agent, env, rpm):
 
         # Store data in replay memory
         rpm.append(obs, action, reward, next_obs, terminal)
+
         obs = next_obs
         episode_reward += reward
 
@@ -82,7 +81,7 @@ def run_evaluate_episodes(agent, env, eval_episodes):
 
 
 def main():
-    logger.info("------------------ DDPG ---------------------")
+    logger.info("------------------- SAC ---------------------")
     logger.info('Env: {}, Seed: {}'.format(args.env, args.seed))
     logger.info("---------------------------------------------")
 
@@ -95,15 +94,19 @@ def main():
 
     # Initialize model, algorithm, agent, replay_memory
     model = MujocoModel(obs_dim, action_dim)
-    algorithm = DDPG(
-        model, gamma=GAMMA, tau=TAU, actor_lr=ACTOR_LR, critic_lr=CRITIC_LR)
-    agent = MujocoAgent(algorithm, action_dim, expl_noise=EXPL_NOISE)
+    algorithm = SAC(
+        model,
+        gamma=GAMMA,
+        tau=TAU,
+        alpha=args.alpha,
+        actor_lr=ACTOR_LR,
+        critic_lr=CRITIC_LR)
+    agent = MujocoAgent(algorithm)
     rpm = ReplayMemory(
         max_size=MEMORY_SIZE, obs_dim=obs_dim, act_dim=action_dim)
 
     total_steps = 0
     test_flag = 0
-
     while total_steps < args.train_total_steps:
         # Train episode
         episode_reward, episode_steps = run_train_episode(agent, env, rpm)
@@ -128,7 +131,7 @@ def main():
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--env", default="HalfCheetah-v1", help='OpenAI gym environment name')
+        "--env", default="HalfCheetah-v1", help='Mujoco gym environment name')
     parser.add_argument(
         "--seed",
         default=0,
@@ -144,6 +147,13 @@ if __name__ == "__main__":
         type=int,
         default=int(5e3),
         help='The step interval between two consecutive evaluations')
+    parser.add_argument(
+        "--alpha",
+        default=0.2,
+        type=float,
+        help=
+        'Determines the relative importance of entropy term against the reward'
+    )
     args = parser.parse_args()
 
     main()

@@ -14,36 +14,31 @@
 
 import parl
 import torch
-import math
 from torch.distributions import Normal
 import torch.nn.functional as F
 from copy import deepcopy
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-__all__ = ['OAC']
+__all__ = ['SAC']
 
 
-class OAC(parl.Algorithm):
+class SAC(parl.Algorithm):
     def __init__(self,
                  model,
                  gamma=None,
                  tau=None,
                  alpha=None,
-                 beta=None,
-                 delta=None,
                  actor_lr=None,
                  critic_lr=None):
-        """ OAC algorithm
-                    Args:
-                        model(parl.Model): forward network of actor and critic.
-                        gamma(float): discounted factor for reward computation
-                        tau (float): decay coefficient when updating the weights of self.target_model with self.model
-                        alpha (float): Temperature parameter determines the relative importance of the entropy against the reward
-                        beta (float): determines the relative importance of sigma_Q
-                        delta (float): determines the relative changes of exploration`s mean
-                        actor_lr (float): learning rate of the actor model
-                        critic_lr (float): learning rate of the critic model
+        """ SAC algorithm
+            Args:
+                model(parl.Model): forward network of actor and critic.
+                gamma(float): discounted factor for reward computation
+                tau (float): decay coefficient when updating the weights of self.target_model with self.model
+                alpha (float): Temperature parameter determines the relative importance of the entropy against the reward
+                actor_lr (float): learning rate of the actor model
+                critic_lr (float): learning rate of the critic model
         """
         assert isinstance(gamma, float)
         assert isinstance(tau, float)
@@ -54,9 +49,6 @@ class OAC(parl.Algorithm):
         self.gamma = gamma
         self.tau = tau
         self.alpha = alpha
-        self.beta = beta
-        self.delta = delta
-
         self.actor_lr = actor_lr
         self.critic_lr = critic_lr
 
@@ -80,53 +72,10 @@ class OAC(parl.Algorithm):
         action = torch.tanh(x_t)
 
         log_prob = normal.log_prob(x_t)
+        # Enforcing Action Bound
         log_prob -= torch.log((1 - action.pow(2)) + 1e-6)
         log_prob = log_prob.sum(1, keepdims=True)
         return action, log_prob
-
-    def get_optimistic_exploration_action(self, obs):
-        act_mean, act_log_std = self.model.policy(obs)
-        act_std = torch.exp(act_log_std)
-        normal = Normal(act_mean, act_std)
-        pre_tanh_mu_T = normal.rsample()
-
-        pre_tanh_mu_T.requires_grad_()
-        tanh_mu_T = torch.tanh(pre_tanh_mu_T)
-
-        # Get the upper bound of the Q estimate
-        Q1, Q2 = self.model.critic_model(obs, tanh_mu_T)
-        mu_Q = (Q1 + Q2) / 2.0
-        sigma_Q = torch.abs(Q1 - Q2) / 2.0
-
-        Q_UB = mu_Q + self.beta * sigma_Q
-
-        # Obtain the gradient of Q_UB wrt to a with a evaluated at mu_t
-        grad = torch.autograd.grad(Q_UB, pre_tanh_mu_T)
-        grad = grad[0]
-        assert grad is not None
-        assert pre_tanh_mu_T.shape == grad.shape
-
-        # Obtain Sigma_T (the covariance of the normal distribution)
-        Sigma_T = torch.pow(act_std, 2)
-
-        # The dividor is (g^T Sigma g) ** 0.5
-        # Sigma is diagonal, so this works out to be
-        # ( sum_{i=1}^k (g^(i))^2 (sigma^(i))^2 ) ** 0.5
-        denom = torch.sqrt(torch.sum(torch.mul(torch.pow(grad, 2),
-                                               Sigma_T))) + 10e-6
-
-        # Obtain the change in mu
-        mu_C = math.sqrt(2.0 * self.delta) * torch.mul(Sigma_T, grad) / denom
-        assert mu_C.shape == pre_tanh_mu_T.shape
-
-        mu_E = pre_tanh_mu_T + mu_C
-        # Construct the tanh normal distribution and sample the exploratory action from it
-        assert mu_E.shape == act_std.shape
-
-        dist = Normal(mu_E, act_std)
-        z = dist.sample().detach()
-        action = torch.tanh(z)
-        return action
 
     def learn(self, obs, action, reward, next_obs, terminal):
         critic_loss = self._critic_learn(obs, action, reward, next_obs,

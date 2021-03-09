@@ -8,7 +8,8 @@ Please see [here](https://github.com/openai/mujoco-py) to know more about Mujoco
 
 ### Benchmark result
 
-<img src=".benchmark/OAC_results.png" width = "800" height ="400" alt="OAC_results"/>
+<img src=".benchmark/OAC_results.png" width = "1000" height ="280" alt="OAC_results"/>
++ Each experiment was run three times with different seeds
 
 ## How to use
 ### Dependencies:
@@ -19,9 +20,13 @@ Please see [here](https://github.com/openai/mujoco-py) to know more about Mujoco
 + mujoco-py==0.5.7
 
 ### Start Training:
-```
+```train
 # To train an agent for HalfCheetah-v1 game
 python train.py
 
 # To train for other game & params
 python train.py --env [ENV_NAME] --alpha [float] --beta [float] --delta [float]
+```
+
+### Reference
++ [microsoft/oac-explore](https://github.com/microsoft/oac-explore)
