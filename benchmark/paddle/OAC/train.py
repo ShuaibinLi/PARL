@@ -29,7 +29,6 @@ GAMMA = 0.99
 TAU = 0.005
 ACTOR_LR = 3e-4
 CRITIC_LR = 3e-4
-EXPL_NOISE = 0.1
 
 
 # Run episode for training
